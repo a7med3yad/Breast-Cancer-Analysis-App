@@ -27,7 +27,7 @@ section = st.sidebar.radio("Go to", [
 ])
 
 # --- Load Static Dataset ---
-DATA_PATH = ".streamlit/wdbc.csv"
+DATA_PATH = ".streamlit/wdbc.csv"  # Adjusted path
 
 @st.cache_data
 def load_data(path):
@@ -47,8 +47,7 @@ def load_data(path):
 
 df = load_data(DATA_PATH)
 
-# ------------------------ Sections ------------------------
-
+# --- Sections Logic ---
 if section == "📋 Data Overview":
     st.title("📋 Data Overview")
     st.write(df.head())

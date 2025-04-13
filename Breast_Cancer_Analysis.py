@@ -176,4 +176,24 @@ elif section == "🧠 Logistic Regression":
     X = df.drop(columns=['Diagnosis'])
     y = df['Diagnosis']
     X_scaled = scaler.fit_transform(X)
-    X_train, X_test, y_train_
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42, stratify=y)
+
+    clf = LogisticRegression(max_iter=10000)
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred)
+
+    st.write("Confusion Matrix:")
+    fig, ax = plt.subplots()
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Benign', 'Malignant'], yticklabels=['Benign', 'Malignant'])
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    st.pyplot(fig)
+
+elif section == "📌 Summary":
+    st.title("📌 Summary")
+    st.markdown("""
+    - ✅ The best-performing feature for simple linear regression was **`perimeter_mean`**.
+    - 📈 Polynomial regression of degree **2** gave the best performance.
+    - 🧪 Logistic Regression performs well in classifying tumors into **Benign** and **Malignant**.
+    """)

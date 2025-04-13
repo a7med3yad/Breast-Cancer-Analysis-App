@@ -1,22 +1,21 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
-import streamlit as st
+import seaborn as sns
+
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.preprocessing import PolynomialFeatures, StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix, ConfusionMatrixDisplay, accuracy_score
+from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix
 
-# Streamlit setup
-st.title("Breast Cancer Data Analysis")
+# --- App title and description ---
+st.set_page_config(page_title="Breast Cancer Analysis", layout="wide")
+st.title("📊 Breast Cancer Data Analysis & Modeling")
 
-# Upload dataset
-uploaded_file = st.file_uploader("Upload CSV file", type="csv")
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file, header=None)
-    
-    # Column names
+# --- Load the data ---
+@st.cache_data
+def load_data():
     columns = [
         'ID', 'Diagnosis', 
         'radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'smoothness_mean',
@@ -26,129 +25,181 @@ if uploaded_file is not None:
         'radius_worst', 'texture_worst', 'perimeter_worst', 'area_worst', 'smoothness_worst',
         'compactness_worst', 'concavity_worst', 'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst'
     ]
-    df.columns = columns
-
-    # Drop ID column and encode Diagnosis
+    file_path = "C:\\Users\\hazem\\OneDrive\\Documents\\archive\\New folder\\wdbc.csv"
+    df = pd.read_csv(file_path, header=None, names=columns)
     df.drop('ID', axis=1, inplace=True)
     df['Diagnosis'] = df['Diagnosis'].map({'M': 1, 'B': 0})
+    return df
 
-    # Sidebar options
-    st.sidebar.header("Options")
-    task = st.sidebar.radio("Choose a task", ["Data Overview", "Visualizations", "Modeling"])
+df = load_data()
 
-    # Data Overview
-    if task == "Data Overview":
-        st.subheader("Data Overview")
-        st.write(df.head())
-        st.write("Dataset shape:", df.shape)
-        st.write("Missing values:", df.isnull().sum())
+# --- Show data overview ---
+with st.expander("📋 Data Overview"):
+    st.write(df.head())
+    st.write("Shape:", df.shape)
+    st.write("Missing values:", df.isnull().sum().sum())
+    st.write("Data types:", df.dtypes)
+    st.write(df.describe())
 
-    # Visualizations
-    elif task == "Visualizations":
-        st.subheader("Visualizations")
-        chart = st.selectbox("Choose a plot", ["Histograms", "Pairplot", "Correlation Heatmap", "Box Plot"])
+# --- Histograms ---
+with st.expander("📈 Feature Distributions (Histograms)"):
+    fig, ax = plt.subplots(figsize=(20, 15))
+    df.hist(bins=20, figsize=(20, 15), edgecolor='black')
+    plt.suptitle("Histograms of Features", fontsize=20)
+    st.pyplot(fig)
 
-        if chart == "Histograms":
-            st.write("Feature Distributions")
-            fig, ax = plt.subplots(figsize=(20, 15))
-            df.hist(bins=20, figsize=(20, 15), edgecolor='black', ax=ax)
-            st.pyplot(fig)
+# --- Pairplot ---
+with st.expander("🔍 Pairplot of Selected Features"):
+    sample_features = ['radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'Diagnosis']
+    fig = sns.pairplot(df[sample_features], hue='Diagnosis', palette='coolwarm')
+    st.pyplot(fig)
 
-        elif chart == "Pairplot":
-            sample_features = ['radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'Diagnosis']
-            st.write("Scatter Plots by Diagnosis")
-            sns.pairplot(df[sample_features], hue='Diagnosis', palette='coolwarm')
-            st.pyplot()
+# --- Correlation heatmap ---
+with st.expander("📊 Correlation Heatmap"):
+    fig, ax = plt.subplots(figsize=(18, 16))
+    sns.heatmap(df.corr(), cmap='coolwarm', annot=False, fmt=".2f", linewidths=0.5)
+    plt.title("Correlation Heatmap", fontsize=18)
+    st.pyplot(fig)
 
-        elif chart == "Correlation Heatmap":
-            st.write("Correlation Heatmap")
-            corr = df.corr()
-            fig, ax = plt.subplots(figsize=(18, 16))
-            sns.heatmap(corr, cmap='coolwarm', annot=False, fmt=".2f", linewidths=0.5)
-            st.pyplot(fig)
+# --- Preprocessing ---
+X = df.drop('Diagnosis', axis=1)
+y = df['Diagnosis']
 
-        elif chart == "Box Plot":
-            feature = st.selectbox("Choose a feature", df.columns[1:])
-            st.write(f"Box Plot for {feature}")
-            fig, ax = plt.subplots(figsize=(8, 5))
-            sns.boxplot(x=df[feature], color='skyblue', ax=ax)
-            st.pyplot(fig)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
 
-    # Modeling
-    elif task == "Modeling":
-        st.subheader("Modeling")
-        model_choice = st.selectbox("Choose a model", ["Simple Linear Regression", "Multiple Linear Regression", "Polynomial Regression", "Logistic Regression"])
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42, stratify=y
+)
 
-        # Preprocessing
-        X = df.drop('Diagnosis', axis=1)
-        y = df['Diagnosis']
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+# --- Simple Linear Regression ---
+with st.expander("📉 Simple Linear Regression"):
+    corr = df.corr()['radius_mean'].drop('radius_mean')
+    top_feature = corr.abs().idxmax()
+    st.write(f"Top correlated feature: `{top_feature}`")
 
-        if model_choice == "Simple Linear Regression":
-            correlations = df.corr()['radius_mean'].drop('radius_mean')
-            top_feature = correlations.abs().idxmax()
+    X_simple = df[[top_feature]].values
+    y_simple = df['radius_mean'].values
 
-            X_single = df[[top_feature]].values
-            y_single = df['radius_mean'].values
+    X_simple_scaled = scaler.fit_transform(X_simple)
+    X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X_simple_scaled, y_simple, test_size=0.2, random_state=42)
 
-            X_train_single, X_test_single, y_train_single, y_test_single = train_test_split(X_single, y_single, test_size=0.2, random_state=42)
+    model = LinearRegression()
+    model.fit(X_train_s, y_train_s)
+    y_pred_s = model.predict(X_test_s)
 
-            model = LinearRegression()
-            model.fit(X_train_single, y_train_single)
+    st.write(f"Mean Squared Error: {mean_squared_error(y_test_s, y_pred_s):.4f}")
+    st.write(f"R² Score: {r2_score(y_test_s, y_pred_s):.4f}")
 
-            y_pred = model.predict(X_test_single)
-            mse = mean_squared_error(y_test_single, y_pred)
-            r2 = r2_score(y_test_single, y_pred)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    plt.scatter(X_test_s, y_test_s, color='blue', label='Actual')
+    plt.plot(X_test_s, y_pred_s, color='red', linewidth=2, label='Regression Line')
+    plt.xlabel(top_feature)
+    plt.ylabel("radius_mean")
+    plt.title(f"Simple Linear Regression using {top_feature}")
+    plt.legend()
+    plt.grid(True)
+    st.pyplot(fig)
 
-            st.write(f"Top correlated feature: {top_feature}")
-            st.write(f"Mean Squared Error: {mse:.4f}")
-            st.write(f"R² Score: {r2:.4f}")
+# --- Multiple Linear Regression ---
+with st.expander("📚 Multiple Linear Regression"):
+    A = df.drop(columns=['perimeter_mean'])
+    B = df['perimeter_mean']
 
-            fig, ax = plt.subplots()
-            ax.scatter(X_test_single, y_test_single, color='blue', label='Actual')
-            ax.plot(X_test_single, y_pred, color='red', linewidth=2, label='Regression Line')
-            ax.set_xlabel(top_feature)
-            ax.set_ylabel("radius_mean")
-            ax.legend()
-            st.pyplot(fig)
+    A_scaled = scaler.fit_transform(A)
+    B_scaled = scaler.fit_transform(B.values.reshape(-1, 1))
 
-        elif model_choice == "Multiple Linear Regression":
-            model = LinearRegression()
-            model.fit(X_train, y_train)
-            y_pred_train = model.predict(X_train)
-            y_pred_test = model.predict(X_test)
+    A_train, A_test, B_train, B_test = train_test_split(A_scaled, B_scaled, test_size=0.2, random_state=42)
 
-            st.write("Training R²:", r2_score(y_train, y_pred_train))
-            st.write("Testing R²:", r2_score(y_test, y_pred_test))
-            st.write("Training MSE:", mean_squared_error(y_train, y_pred_train))
-            st.write("Testing MSE:", mean_squared_error(y_test, y_pred_test))
+    mlr = LinearRegression()
+    mlr.fit(A_train, B_train)
+    B_pred_train = mlr.predict(A_train)
+    B_pred_test = mlr.predict(A_test)
 
-        elif model_choice == "Polynomial Regression":
-            degree = st.slider("Select degree", 2, 4)
-            poly = PolynomialFeatures(degree)
-            X_poly = poly.fit_transform(X_train)
-            X_poly_test = poly.transform(X_test)
+    st.write("Training R²:", r2_score(B_train, B_pred_train))
+    st.write("Testing R²:", r2_score(B_test, B_pred_test))
+    st.write("Training MSE:", mean_squared_error(B_train, B_pred_train))
+    st.write("Testing MSE:", mean_squared_error(B_test, B_pred_test))
 
-            model = LinearRegression()
-            model.fit(X_poly, y_train)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    plt.scatter(range(len(y_test)), y_test, color='blue', label='Actual', alpha=0.7)
+    plt.scatter(range(len(y_pred_s)), y_pred_s, color='yellow', label='Simple Linear Predictions', alpha=0.7)
+    plt.scatter(range(len(B_test)), B_pred_test, color='red', label='Multiple Linear Predictions', alpha=0.7)
+    plt.title("Comparison of Actual vs Predicted Values", fontsize=16)
+    plt.legend()
+    plt.grid(True)
+    st.pyplot(fig)
 
-            y_poly_pred_train = model.predict(X_poly)
-            y_poly_pred_test = model.predict(X_poly_test)
+# --- Polynomial Regression ---
+with st.expander("🧮 Polynomial Regression"):
+    A = df.drop(columns=['perimeter_mean'])
+    B = df['perimeter_mean']
 
-            st.write("Training R²:", r2_score(y_train, y_poly_pred_train))
-            st.write("Testing R²:", r2_score(y_test, y_poly_pred_test))
-            st.write("Training MSE:", mean_squared_error(y_train, y_poly_pred_train))
-            st.write("Testing MSE:", mean_squared_error(y_test, y_poly_pred_test))
+    A_scaled = scaler.fit_transform(A)
+    A_train, A_test, B_train, B_test = train_test_split(A_scaled, B, test_size=0.2, random_state=42)
 
-        elif model_choice == "Logistic Regression":
-            model = LogisticRegression(max_iter=10000)
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
+    degrees = [2, 3, 4]
+    for degree in degrees:
+        poly = PolynomialFeatures(degree)
+        A_poly_train = poly.fit_transform(A_train)
+        A_poly_test = poly.transform(A_test)
 
-            cm = confusion_matrix(y_test, y_pred)
-            st.write("Confusion Matrix")
-            st.write(cm)
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Benign', 'Malignant'], yticklabels=['Benign', 'Malignant'])
-            st.pyplot()
+        model_poly = LinearRegression()
+        model_poly.fit(A_poly_train, B_train)
+
+        B_pred_train = model_poly.predict(A_poly_train)
+        B_pred_test = model_poly.predict(A_poly_test)
+
+        train_r2 = r2_score(B_train, B_pred_train)
+        test_r2 = r2_score(B_test, B_pred_test)
+        train_mse = mean_squared_error(B_train, B_pred_train)
+        test_mse = mean_squared_error(B_test, B_pred_test)
+
+        st.subheader(f"Degree {degree}")
+        st.write(f"Training R²: {train_r2:.4f}")
+        st.write(f"Testing R²: {test_r2:.4f}")
+        st.write(f"Training MSE: {train_mse:.4f}")
+        st.write(f"Testing MSE: {test_mse:.4f}")
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        plt.scatter(B_test, B_pred_test, alpha=0.6, label=f"Degree {degree}")
+        plt.plot([min(B_test), max(B_test)], [min(B_test), max(B_test)], '--', color='red', label='Perfect Fit')
+        plt.xlabel("Actual")
+        plt.ylabel("Predicted")
+        plt.title(f"Polynomial Regression (degree {degree})")
+        plt.legend()
+        plt.grid(True)
+        st.pyplot(fig)
+
+# --- Logistic Regression ---
+with st.expander("🧠 Logistic Regression for Tumor Classification"):
+    X = df.drop('Diagnosis', axis=1)
+    y = df['Diagnosis']
+
+    X_scaled = scaler.fit_transform(X)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_scaled, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    clf = LogisticRegression(max_iter=10000)
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+
+    cm = confusion_matrix(y_test, y_pred)
+
+    fig, ax = plt.subplots()
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Benign', 'Malignant'], yticklabels=['Benign', 'Malignant'])
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.title('Confusion Matrix - Logistic Regression')
+    st.pyplot(fig)
+
+# --- Summary ---
+with st.expander("📌 Summary"):
+    st.markdown("""
+    - ✅ The best-performing feature for simple linear regression was **`perimeter_mean`**.
+    - 📈 Polynomial regression of degree **2** gave the best performance.
+    - 🧪 Logistic Regression performs well in classifying tumors into **Benign** and **Malignant**.
+    """)
+

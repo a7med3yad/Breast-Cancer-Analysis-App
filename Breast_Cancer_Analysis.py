@@ -62,19 +62,29 @@ if section == "📋 Data Overview":
 
 elif section == "📈 Histograms":
     st.title("📈 Feature Distributions")
+
     features = df.select_dtypes(include=[np.number]).columns.tolist()
-    fig, axes = plt.subplots(nrows=6, ncols=6, figsize=(20, 20))
-    axes = axes.flatten()
 
-    for i, col in enumerate(features):
-        sns.histplot(df[col], ax=axes[i], bins=20, kde=True, edgecolor='black')
-        axes[i].set_title(col)
+    if not features:
+        st.warning("No numeric features found in the dataset.")
+    else:
+        n_features = len(features)
+        n_cols = 6
+        n_rows = (n_features + n_cols - 1) // n_cols  # Ceil division
+        fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(20, 3 * n_rows))
+        axes = axes.flatten()
 
-    for j in range(i + 1, len(axes)):
-        fig.delaxes(axes[j])
+        for i, col in enumerate(features):
+            sns.histplot(df[col], ax=axes[i], bins=20, kde=True, edgecolor='black')
+            axes[i].set_title(col)
 
-    plt.tight_layout()
-    st.pyplot(fig)
+        # Remove unused subplots
+        for j in range(i + 1, len(axes)):
+            fig.delaxes(axes[j])
+
+        fig.tight_layout()
+        st.pyplot(fig)
+
 
 elif section == "🔍 Pairplot":
     st.title("🔍 Pairplot")

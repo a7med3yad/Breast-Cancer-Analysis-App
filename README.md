@@ -1,7 +1,5 @@
 # 🧠 Breast Cancer Analysis Dashboard
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Breast_cancer_awareness_pink_ribbon.svg" alt="Breast Cancer Awareness" width="120" style="margin-bottom: 20px;">
-
 This Streamlit dashboard provides a comprehensive analysis of a **breast cancer dataset** using various machine learning techniques and data visualization tools.
 
 ---

@@ -15,7 +15,7 @@ st.title("📊 Breast Cancer Data Analysis & Modeling")
 
 # --- Load the data ---
 @st.cache_data
-def load_data():
+def load_data(uploaded_file=None):
     columns = [
         'ID', 'Diagnosis', 
         'radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'smoothness_mean',
@@ -25,13 +25,23 @@ def load_data():
         'radius_worst', 'texture_worst', 'perimeter_worst', 'area_worst', 'smoothness_worst',
         'compactness_worst', 'concavity_worst', 'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst'
     ]
-    file_path = "C:\\Users\\hazem\\OneDrive\\Documents\\archive\\New folder\\wdbc.csv"
-    df = pd.read_csv(file_path, header=None, names=columns)
+    
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file, header=None, names=columns)
+    else:
+        df = pd.read_csv("wdbc.csv", header=None, names=columns)
+
     df.drop('ID', axis=1, inplace=True)
     df['Diagnosis'] = df['Diagnosis'].map({'M': 1, 'B': 0})
     return df
 
-df = load_data()
+# --- Upload section ---
+uploaded_file = st.sidebar.file_uploader("📤 Upload Breast Cancer CSV", type=["csv"])
+df = load_data(uploaded_file)
+
+if df is None:
+    st.warning("⚠️ Please upload a valid `wdbc.csv` file to proceed.")
+    st.stop()
 
 # --- Show data overview ---
 with st.expander("📋 Data Overview"):
@@ -202,4 +212,3 @@ with st.expander("📌 Summary"):
     - 📈 Polynomial regression of degree **2** gave the best performance.
     - 🧪 Logistic Regression performs well in classifying tumors into **Benign** and **Malignant**.
     """)
-

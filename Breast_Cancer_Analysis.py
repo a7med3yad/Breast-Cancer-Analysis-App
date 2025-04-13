@@ -26,9 +26,11 @@ section = st.sidebar.radio("Go to", [
     "📌 Summary"
 ])
 
-# --- Load Data Safely ---
+# --- رفع الملف ---
+uploaded_file = st.file_uploader("ارفع ملف الداتا بتاعك يا بيه (CSV)", type=["csv"])
+
 @st.cache_data
-def load_data():
+def load_data(file):
     try:
         columns = [
             'ID', 'Diagnosis', 
@@ -39,23 +41,28 @@ def load_data():
             'radius_worst', 'texture_worst', 'perimeter_worst', 'area_worst', 'smoothness_worst',
             'compactness_worst', 'concavity_worst', 'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst'
         ]
-        file_path = "C:\\Users\\hazem\\OneDrive\\Documents\\archive\\New folder\\wdbc.csv"
-        df = pd.read_csv(file_path, header=None, names=columns)
+        df = pd.read_csv(file, header=None, names=columns)
         df.drop('ID', axis=1, inplace=True)
         df['Diagnosis'] = df['Diagnosis'].map({'M': 1, 'B': 0})
         return df
     except Exception as e:
         return None
 
-df = load_data()
+# --- Data Upload ---
+if uploaded_file is not None:
+    df = load_data(uploaded_file)
+else:
+    df = None
+
+# --- Data Overview ---
+st.title("📋 Data Overview")
 
 if df is not None:
-    X = df.drop('Diagnosis', axis=1)
-    y = df['Diagnosis']
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    st.write(df.head())
+    st.write("الشكل:", df.shape)
+    st.write("قيم ناقصة:", df.isnull().sum().sum())
 else:
-    st.error("❌ Failed to load the dataset. Please make sure the CSV file path is correct.")
+    st.warning("ارفع الداتا يبيه 🫡")
 
 # ------------------------ Sections ------------------------
 

@@ -13,10 +13,10 @@ from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix
 st.set_page_config(page_title="Breast Cancer Analysis", layout="wide", initial_sidebar_state="expanded")
 
 # --- Sidebar Navigation ---
-st.sidebar.title("🔎 Navigation")
-section = st.sidebar.radio("Go to", [
+st.sidebar.title("📌 Navigation")
+section = st.sidebar.radio("Select Section", [
     "📋 Data Overview",
-    "📈 Histograms",
+    "📈 Feature Distributions",
     "🔍 Pairplot",
     "📊 Correlation Heatmap",
     "📉 Simple Linear Regression",
@@ -26,11 +26,12 @@ section = st.sidebar.radio("Go to", [
     "📌 Summary"
 ])
 
-# --- Load Static Dataset ---
-DATA_PATH = ".streamlit/wdbc.csv"  # Adjusted path
+# Optional File Upload
+uploaded_file = st.sidebar.file_uploader("📂 Upload CSV", type="csv")
 
+# --- Load Dataset ---
 @st.cache_data
-def load_data(path):
+def load_data(source):
     columns = [
         'ID', 'Diagnosis', 
         'radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'smoothness_mean',
@@ -40,14 +41,19 @@ def load_data(path):
         'radius_worst', 'texture_worst', 'perimeter_worst', 'area_worst', 'smoothness_worst',
         'compactness_worst', 'concavity_worst', 'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst'
     ]
-    df = pd.read_csv(path, header=None, names=columns)
+    if source is not None:
+        df = pd.read_csv(source, header=None, names=columns)
+    else:
+        df = pd.read_csv(".streamlit/wdbc.csv", header=None, names=columns)
+
     df.drop('ID', axis=1, inplace=True)
     df['Diagnosis'] = df['Diagnosis'].map({'M': 1, 'B': 0})
     return df
 
-df = load_data(DATA_PATH)
+# Load the data
+df = load_data(uploaded_file)
 
-# --- Sections Logic ---
+# --- Sections ---
 if section == "📋 Data Overview":
     st.title("📋 Data Overview")
     st.write(df.head())
@@ -56,14 +62,13 @@ if section == "📋 Data Overview":
     st.write("Data types:", df.dtypes)
     st.write(df.describe())
 
-elif section == "📈 Histograms":
+elif section == "📈 Feature Distributions":
     st.title("📈 Feature Distributions")
     features = df.select_dtypes(include=[np.number]).columns.tolist()
     selected_features = st.multiselect("Select features:", features, default=features[:6])
     if selected_features:
-        n_features = len(selected_features)
         n_cols = 3
-        n_rows = (n_features + n_cols - 1) // n_cols
+        n_rows = (len(selected_features) + n_cols - 1) // n_cols
         fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 4 * n_rows))
         axes = axes.flatten()
         for i, col in enumerate(selected_features):
@@ -196,3 +201,4 @@ elif section == "📌 Summary":
     - 📈 Polynomial regression of degree **2** gave the best performance.
     - 🧪 Logistic Regression performs well in classifying tumors into **Benign** and **Malignant**.
     """)
+

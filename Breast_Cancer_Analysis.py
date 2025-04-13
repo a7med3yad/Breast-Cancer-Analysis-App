@@ -26,11 +26,11 @@ section = st.sidebar.radio("Go to", [
     "📌 Summary"
 ])
 
-# --- رفع الملف ---
-uploaded_file = st.file_uploader("ارفع ملف الداتا بتاعك يا بيه (CSV)", type=["csv"])
+# --- Load Static Dataset ---
+DATA_PATH = "data/wdbc.csv"  # make sure this path is correct and file exists
 
 @st.cache_data
-def load_data(file):
+def load_data(path):
     try:
         columns = [
             'ID', 'Diagnosis', 
@@ -41,36 +41,30 @@ def load_data(file):
             'radius_worst', 'texture_worst', 'perimeter_worst', 'area_worst', 'smoothness_worst',
             'compactness_worst', 'concavity_worst', 'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst'
         ]
-        df = pd.read_csv(file, header=None, names=columns)
+        df = pd.read_csv(path, header=None, names=columns)
         df.drop('ID', axis=1, inplace=True)
         df['Diagnosis'] = df['Diagnosis'].map({'M': 1, 'B': 0})
         return df
     except Exception as e:
+        st.error("❌ Failed to load the dataset.")
         return None
 
-# --- Data Upload ---
-if uploaded_file is not None:
-    df = load_data(uploaded_file)
-else:
-    df = None
+df = load_data(DATA_PATH)
 
 # --- Data Overview ---
-st.title("📋 Data Overview")
-
-if df is not None:
-    st.write(df.head())
-    st.write("الشكل:", df.shape)
-    st.write("قيم ناقصة:", df.isnull().sum().sum())
+if df is None:
+    st.warning("Please upload your dataset to proceed.")
 else:
-    st.warning("ارفع الداتا يبيه 🫡")
+    st.title("📋 Data Overview")
+    st.write(df.head())
+    st.write("Shape:", df.shape)
+    st.write("Missing values:", df.isnull().sum().sum())
 
 # ------------------------ Sections ------------------------
 
 if section == "📋 Data Overview":
     st.title("📋 Data Overview")
-    if df is None:
-        st.info("📂 Please load the dataset to view data overview.")
-    else:
+    if df is not None:
         st.write(df.head())
         st.write("Shape:", df.shape)
         st.write("Missing values:", df.isnull().sum().sum())
@@ -79,47 +73,35 @@ if section == "📋 Data Overview":
 
 elif section == "📈 Histograms":
     st.title("📈 Feature Distributions")
-    if df is None:
-        st.info("📂 Please load the dataset to view histograms.")
-    else:
+    if df is not None:
         features = df.select_dtypes(include=[np.number]).columns.tolist()
-        if not features:
-            st.warning("🚫 No numeric features found.")
+        selected_features = st.multiselect("Select features:", features, default=features[:6])
+        if selected_features:
+            n_features = len(selected_features)
+            n_cols = 3
+            n_rows = (n_features + n_cols - 1) // n_cols
+            fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 4 * n_rows))
+            axes = axes.flatten()
+            for i, col in enumerate(selected_features):
+                sns.histplot(df[col], ax=axes[i], bins=20, kde=True, edgecolor='black')
+                axes[i].set_title(col)
+            for j in range(i + 1, len(axes)):
+                fig.delaxes(axes[j])
+            fig.tight_layout()
+            st.pyplot(fig)
         else:
-            selected_features = st.multiselect("Select features:", features, default=features[:6])
-            if not selected_features:
-                st.warning("⚠️ Please select at least one feature to display.")
-            else:
-                n_features = len(selected_features)
-                n_cols = 3
-                n_rows = (n_features + n_cols - 1) // n_cols
-                fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 4 * n_rows))
-                axes = axes.flatten()
-
-                for i, col in enumerate(selected_features):
-                    sns.histplot(df[col], ax=axes[i], bins=20, kde=True, edgecolor='black')
-                    axes[i].set_title(col)
-
-                for j in range(i + 1, len(axes)):
-                    fig.delaxes(axes[j])
-
-                fig.tight_layout()
-                st.pyplot(fig)
+            st.warning("⚠️ Please select at least one feature to display.")
 
 elif section == "🔍 Pairplot":
     st.title("🔍 Pairplot")
-    if df is None:
-        st.info("📂 Please load the dataset to view pairplots.")
-    else:
+    if df is not None:
         selected = ['radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'Diagnosis']
         fig = sns.pairplot(df[selected], hue='Diagnosis', palette='coolwarm')
         st.pyplot(fig)
 
 elif section == "📊 Correlation Heatmap":
     st.title("📊 Correlation Heatmap")
-    if df is None:
-        st.info("📂 Please load the dataset to view heatmaps.")
-    else:
+    if df is not None:
         fig, ax = plt.subplots(figsize=(18, 16))
         sns.heatmap(df.corr(), cmap='coolwarm', annot=False, fmt=".2f", linewidths=0.5)
         plt.title("Correlation Heatmap", fontsize=18)
@@ -127,9 +109,8 @@ elif section == "📊 Correlation Heatmap":
 
 elif section == "📉 Simple Linear Regression":
     st.title("📉 Simple Linear Regression")
-    if df is None:
-        st.info("📂 Please load the dataset to run this regression.")
-    else:
+    if df is not None:
+        scaler = StandardScaler()
         corr = df.corr()['radius_mean'].drop('radius_mean')
         top_feature = corr.abs().idxmax()
         st.write(f"Top correlated feature: `{top_feature}`")
@@ -156,9 +137,8 @@ elif section == "📉 Simple Linear Regression":
 
 elif section == "📚 Multiple Linear Regression":
     st.title("📚 Multiple Linear Regression")
-    if df is None:
-        st.info("📂 Please load the dataset to run this regression.")
-    else:
+    if df is not None:
+        scaler = StandardScaler()
         A = df.drop(columns=['perimeter_mean'])
         B = df['perimeter_mean']
         A_scaled = scaler.fit_transform(A)
@@ -181,9 +161,8 @@ elif section == "📚 Multiple Linear Regression":
 
 elif section == "🧮 Polynomial Regression":
     st.title("🧮 Polynomial Regression")
-    if df is None:
-        st.info("📂 Please load the dataset to run this regression.")
-    else:
+    if df is not None:
+        scaler = StandardScaler()
         A = df.drop(columns=['perimeter_mean'])
         B = df['perimeter_mean']
         A_scaled = scaler.fit_transform(A)
@@ -213,9 +192,11 @@ elif section == "🧮 Polynomial Regression":
 
 elif section == "🧠 Logistic Regression":
     st.title("🧠 Logistic Regression")
-    if df is None:
-        st.info("📂 Please load the dataset to perform classification.")
-    else:
+    if df is not None:
+        scaler = StandardScaler()
+        X = df.drop(columns=['Diagnosis'])
+        y = df['Diagnosis']
+        X_scaled = scaler.fit_transform(X)
         X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42, stratify=y)
 
         clf = LogisticRegression(max_iter=10000)

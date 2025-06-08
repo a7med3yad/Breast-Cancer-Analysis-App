@@ -1,6 +1,16 @@
-pandas
-numpy
-seaborn
-matplotlib
-streamlit
-scikit-learn
+# Core libraries
+numpy==1.26.4
+pandas==2.2.2
+matplotlib==3.8.4
+seaborn==0.13.2
+
+# Machine Learning
+scikit-learn==1.4.2
+torch==2.3.0
+torchvision==0.18.0
+
+# Streamlit App
+streamlit==1.35.0
+
+# Optional (for better display)
+scipy==1.13.0

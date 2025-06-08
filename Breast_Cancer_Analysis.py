@@ -12,8 +12,10 @@ from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, roc_curve, auc
 import matplotlib.pyplot as plt
 import seaborn as sns
-import io
-import base64
+import warnings
+
+# Suppress warnings for cleaner output
+warnings.filterwarnings('ignore')
 
 # Set page configuration
 st.set_page_config(page_title="Breast Cancer Classification App", layout="wide")
@@ -21,7 +23,8 @@ st.set_page_config(page_title="Breast Cancer Classification App", layout="wide")
 # Title and description
 st.title("Breast Cancer Classification App")
 st.markdown("""
-This app allows you to upload a breast cancer dataset (WDBC format) and classify tumors as benign or malignant using various machine learning models.
+This app classifies breast cancer tumors as benign or malignant using machine learning models.
+Upload a WDBC dataset (CSV) to proceed.
 """)
 
 # Function to load and preprocess data
@@ -101,7 +104,7 @@ if uploaded_file is not None:
 
     # Data preprocessing
     X = df.drop('Diagnosis', axis=1)
-    y = df['Diagnosis']
+    y = df['Diagnosis']  # Already numeric (0 for 'B', 1 for 'M')
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
@@ -125,6 +128,10 @@ if uploaded_file is not None:
     roc_data = {}
 
     if st.button("Train Models"):
+        progress_bar = st.progress(0)
+        total_steps = len(models_to_train) + (2 if "Support Vector Machine (SVM)" in models_to_train else 0)
+        current_step = 0
+
         # Logistic Regression
         if "Logistic Regression" in models_to_train:
             st.subheader("Logistic Regression Results")
@@ -149,6 +156,8 @@ if uploaded_file is not None:
             st.pyplot(plot_confusion_matrix(cm, "Confusion Matrix - Logistic Regression"))
             st.write("Classification Report:")
             st.dataframe(pd.DataFrame(report).transpose())
+            current_step += 1
+            progress_bar.progress(current_step / total_steps)
 
         # KNN
         if "K-Nearest Neighbors (KNN)" in models_to_train:
@@ -189,13 +198,15 @@ if uploaded_file is not None:
             st.write(f"Best K: {best_k}")
             st.write(f"Test Accuracy: {acc:.4f}")
             st.pyplot(plot_confusion_matrix(cm, f"Confusion Matrix - KNN (K={best_k})"))
-            st.write("_classification Report:")
+            st.write("Classification Report:")
             st.dataframe(pd.DataFrame(report).transpose())
+            current_step += 1
+            progress_bar.progress(current_step / total_steps)
 
         # SVM
         if "Support Vector Machine (SVM)" in models_to_train:
             st.subheader("Support Vector Machine Results")
-            kernels = ['linear', 'rbf']
+            kernels = ['linear', 'rbf']  # Removed 'poly' to reduce runtime
             for kernel in kernels:
                 svm = SVC(kernel=kernel, random_state=42, probability=True)
                 svm.fit(X_train, y_train)
@@ -219,23 +230,22 @@ if uploaded_file is not None:
                 st.pyplot(plot_confusion_matrix(cm, f"Confusion Matrix - SVM {kernel}"))
                 st.write("Classification Report:")
                 st.dataframe(pd.DataFrame(report).transpose())
+                current_step += 1
+                progress_bar.progress(current_step / total_steps)
 
         # Neural Network
         if "Neural Network" in models_to_train:
             st.subheader("Neural Network Results")
-            # Convert to PyTorch tensors
-            y_train_numeric = y_train.map({'M': 1, 'B': 0}).values
-            y_val_numeric = y_val.map({'M': 1, 'B': 0}).values
-            y_test_numeric = y_test.map({'M': 1, 'B': 0}).values
-            X_train_torch = torch.FloatTensor(X_train)
-            y_train_torch = torch.FloatTensor(y_train_numeric).reshape(-1, 1)
-            X_val_torch = torch.FloatTensor(X_val)
-            y_val_torch = torch.FloatTensor(y_val_numeric).reshape(-1, 1)
-            X_test_torch = torch.FloatTensor(X_test)
-            y_test_torch = torch.FloatTensor(y_test_numeric).reshape(-1, 1)
-            
-            activations = ['relu']
-            for activation in activations:
+            try:
+                # Convert to PyTorch tensors
+                X_train_torch = torch.FloatTensor(X_train)
+                y_train_torch = torch.FloatTensor(y_train.values).reshape(-1, 1)
+                X_val_torch = torch.FloatTensor(X_val)
+                y_val_torch = torch.FloatTensor(y_val.values).reshape(-1, 1)
+                X_test_torch = torch.FloatTensor(X_test)
+                y_test_torch = torch.FloatTensor(y_test.values).reshape(-1, 1)
+                
+                activation = 'relu'
                 model = NeuralNetwork(input_size=X_train.shape[1], activation=activation)
                 criterion = nn.BCELoss()
                 optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -272,10 +282,10 @@ if uploaded_file is not None:
                     y_pred_proba = model(X_test_torch).cpu().numpy()
                     y_pred = (y_pred_proba > 0.5).astype(int)
                 
-                accuracy = accuracy_score(y_test_numeric, y_pred)
-                cm = confusion_matrix(y_test_numeric, y_pred)
-                report = classification_report(y_test_numeric, y_pred, output_dict=True)
-                fpr, tpr, _ = roc_curve(y_test_numeric, y_pred_proba)
+                accuracy = accuracy_score(y_test, y_pred)
+                cm = confusion_matrix(y_test, y_pred)
+                report = classification_report(y_test, y_pred, output_dict=True)
+                fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
                 roc_auc = auc(fpr, tpr)
                 
                 results[f'Neural Network {activation}'] = {
@@ -300,6 +310,13 @@ if uploaded_file is not None:
                 ax.set_ylabel('Loss')
                 ax.legend()
                 st.pyplot(fig)
+                
+                current_step += 1
+                progress_bar.progress(current_step / total_steps)
+            
+            except Exception as e:
+                st.error(f"Neural Network training failed: {str(e)}")
+                st.info("Ensure PyTorch is installed and compatible with your system. Try reducing epochs or batch size if resources are limited.")
 
         # Display ROC curves
         if roc_data:

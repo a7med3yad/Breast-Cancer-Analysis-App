@@ -1,11 +1,10 @@
-# Breast Cancer ML App with Streamlit
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
@@ -13,20 +12,6 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
-# Load Data Function
-def load_data():
-    data = pd.read_csv('wdbc.csv')
-    data.drop('id', axis=1, inplace=True)
-    data['diagnosis'] = data['diagnosis'].map({'M': 1, 'B': 0})
-    return data
-
-def preprocess_data(data):
-    X = data.drop('diagnosis', axis=1)
-    y = data['diagnosis']
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    return train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
 # Neural Network Class
 class NeuralNetwork(nn.Module):
@@ -42,68 +27,87 @@ class NeuralNetwork(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-# Main App
 st.title('Breast Cancer Diagnosis ML App')
-data = load_data()
-st.subheader('Raw Data')
-st.dataframe(data.head())
 
-# Visualization
-if st.checkbox('Show EDA Plots'):
-    st.subheader('Correlation Heatmap')
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(data.corr(), cmap='coolwarm')
-    st.pyplot(plt)
+# File uploader for CSV
+uploaded_file = st.file_uploader("Upload your wdbc.csv file", type=["csv"])
+if uploaded_file is not None:
+    data = pd.read_csv(uploaded_file)
+    if 'id' in data.columns:
+        data.drop('id', axis=1, inplace=True)
+    if 'diagnosis' in data.columns:
+        data['diagnosis'] = data['diagnosis'].map({'M': 1, 'B': 0})
+    else:
+        st.error("Uploaded CSV must contain 'diagnosis' column.")
+        st.stop()
 
-# Preprocess
-X_train, X_test, y_train, y_test = preprocess_data(data)
+    st.subheader('Raw Data')
+    st.dataframe(data.head())
 
-# Model Selection
-model_choice = st.selectbox('Select Model', ['Logistic Regression', 'KNN', 'SVM', 'Neural Network'])
+    # Visualization
+    if st.checkbox('Show EDA Plots'):
+        st.subheader('Correlation Heatmap')
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(data.corr(), cmap='coolwarm')
+        st.pyplot(plt)
 
-if model_choice == 'Logistic Regression':
-    model = LogisticRegression(max_iter=10000)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
+    # Preprocess
+    X = data.drop('diagnosis', axis=1)
+    y = data['diagnosis']
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-elif model_choice == 'KNN':
-    k = st.slider('K value', 1, 15, 5)
-    model = KNeighborsClassifier(n_neighbors=k)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
+    # Model Selection
+    model_choice = st.selectbox('Select Model', ['Logistic Regression', 'KNN', 'SVM', 'Neural Network'])
 
-elif model_choice == 'SVM':
-    kernel = st.selectbox('Kernel', ['linear', 'rbf', 'poly'])
-    model = SVC(kernel=kernel)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
+    if model_choice == 'Logistic Regression':
+        model = LogisticRegression(max_iter=10000)
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
 
-elif model_choice == 'Neural Network':
-    act_func = st.selectbox('Activation Function', ['relu', 'sigmoid'])
-    model = NeuralNetwork(X_train.shape[1], activation=act_func)
-    criterion = nn.BCELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    
-    X_train_tensor = torch.FloatTensor(X_train)
-    y_train_tensor = torch.FloatTensor(y_train.values).view(-1, 1)
-    for epoch in range(100):
-        output = model(X_train_tensor)
-        loss = criterion(output, y_train_tensor)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    elif model_choice == 'KNN':
+        k = st.slider('K value', 1, 15, 5)
+        model = KNeighborsClassifier(n_neighbors=k)
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
 
-    with torch.no_grad():
-        X_test_tensor = torch.FloatTensor(X_test)
-        preds = model(X_test_tensor).round().numpy().astype(int).flatten()
+    elif model_choice == 'SVM':
+        kernel = st.selectbox('Kernel', ['linear', 'rbf', 'poly'])
+        model = SVC(kernel=kernel)
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
 
-# Evaluation
-st.subheader('Model Performance')
-st.write('Accuracy:', accuracy_score(y_test, preds))
-st.text('Classification Report')
-st.text(classification_report(y_test, preds))
+    elif model_choice == 'Neural Network':
+        act_func = st.selectbox('Activation Function', ['relu', 'sigmoid'])
+        model = NeuralNetwork(X_train.shape[1], activation=act_func)
+        criterion = nn.BCELoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-st.text('Confusion Matrix')
-fig, ax = plt.subplots()
-sns.heatmap(confusion_matrix(y_test, preds), annot=True, fmt='d', ax=ax)
-st.pyplot(fig)
+        X_train_tensor = torch.FloatTensor(X_train)
+        y_train_tensor = torch.FloatTensor(y_train.values).view(-1, 1)
+
+        for epoch in range(100):
+            output = model(X_train_tensor)
+            loss = criterion(output, y_train_tensor)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        with torch.no_grad():
+            X_test_tensor = torch.FloatTensor(X_test)
+            preds = model(X_test_tensor).round().numpy().astype(int).flatten()
+
+    # Evaluation
+    st.subheader('Model Performance')
+    st.write('Accuracy:', accuracy_score(y_test, preds))
+    st.text('Classification Report')
+    st.text(classification_report(y_test, preds))
+
+    st.text('Confusion Matrix')
+    fig, ax = plt.subplots()
+    sns.heatmap(confusion_matrix(y_test, preds), annot=True, fmt='d', ax=ax)
+    st.pyplot(fig)
+
+else:
+    st.info("Please upload the breast cancer dataset CSV file to proceed.")

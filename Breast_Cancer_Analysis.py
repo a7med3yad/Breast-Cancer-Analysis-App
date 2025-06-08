@@ -1,204 +1,109 @@
+# Breast Cancer ML App with Streamlit
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix
+# Load Data Function
+def load_data():
+    data = pd.read_csv('wdbc.csv')
+    data.drop('id', axis=1, inplace=True)
+    data['diagnosis'] = data['diagnosis'].map({'M': 1, 'B': 0})
+    return data
 
-# --- App Config ---
-st.set_page_config(page_title="Breast Cancer Analysis", layout="wide", initial_sidebar_state="expanded")
-
-# --- Sidebar Navigation ---
-st.sidebar.title("📌 Navigation")
-section = st.sidebar.radio("Select Section", [
-    "📋 Data Overview",
-    "📈 Feature Distributions",
-    "🔍 Pairplot",
-    "📊 Correlation Heatmap",
-    "📉 Simple Linear Regression",
-    "📚 Multiple Linear Regression",
-    "🧮 Polynomial Regression",
-    "🧠 Logistic Regression",
-    "📌 Summary"
-])
-
-# Optional File Upload
-uploaded_file = st.sidebar.file_uploader("📂 Upload CSV", type="csv")
-
-# --- Load Dataset ---
-@st.cache_data
-def load_data(source):
-    columns = [
-        'ID', 'Diagnosis', 
-        'radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'smoothness_mean',
-        'compactness_mean', 'concavity_mean', 'concave_points_mean', 'symmetry_mean', 'fractal_dimension_mean',
-        'radius_se', 'texture_se', 'perimeter_se', 'area_se', 'smoothness_se',
-        'compactness_se', 'concavity_se', 'concave_points_se', 'symmetry_se', 'fractal_dimension_se',
-        'radius_worst', 'texture_worst', 'perimeter_worst', 'area_worst', 'smoothness_worst',
-        'compactness_worst', 'concavity_worst', 'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst'
-    ]
-    if source is not None:
-        df = pd.read_csv(source, header=None, names=columns)
-    else:
-        df = pd.read_csv(".streamlit/wdbc.csv", header=None, names=columns)
-
-    df.drop('ID', axis=1, inplace=True)
-    df['Diagnosis'] = df['Diagnosis'].map({'M': 1, 'B': 0})
-    return df
-
-# Load the data
-df = load_data(uploaded_file)
-
-# --- Sections ---
-if section == "📋 Data Overview":
-    st.title("📋 Data Overview")
-    st.write(df.head())
-    st.write("Shape:", df.shape)
-    st.write("Missing values:", df.isnull().sum().sum())
-    st.write("Data types:", df.dtypes)
-    st.write(df.describe())
-
-elif section == "📈 Feature Distributions":
-    st.title("📈 Feature Distributions")
-    features = df.select_dtypes(include=[np.number]).columns.tolist()
-    selected_features = st.multiselect("Select features:", features, default=features[:6])
-    if selected_features:
-        n_cols = 3
-        n_rows = (len(selected_features) + n_cols - 1) // n_cols
-        fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, figsize=(15, 4 * n_rows))
-        axes = axes.flatten()
-        for i, col in enumerate(selected_features):
-            sns.histplot(df[col], ax=axes[i], bins=20, kde=True, edgecolor='black')
-            axes[i].set_title(col)
-        for j in range(i + 1, len(axes)):
-            fig.delaxes(axes[j])
-        fig.tight_layout()
-        st.pyplot(fig)
-    else:
-        st.warning("⚠️ Please select at least one feature to display.")
-
-elif section == "🔍 Pairplot":
-    st.title("🔍 Pairplot")
-    selected = ['radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 'Diagnosis']
-    fig = sns.pairplot(df[selected], hue='Diagnosis', palette='coolwarm')
-    st.pyplot(fig)
-
-elif section == "📊 Correlation Heatmap":
-    st.title("📊 Correlation Heatmap")
-    fig, ax = plt.subplots(figsize=(18, 16))
-    sns.heatmap(df.corr(), cmap='coolwarm', annot=False, fmt=".2f", linewidths=0.5)
-    plt.title("Correlation Heatmap", fontsize=18)
-    st.pyplot(fig)
-
-elif section == "📉 Simple Linear Regression":
-    st.title("📉 Simple Linear Regression")
+def preprocess_data(data):
+    X = data.drop('diagnosis', axis=1)
+    y = data['diagnosis']
     scaler = StandardScaler()
-    corr = df.corr()['radius_mean'].drop('radius_mean')
-    top_feature = corr.abs().idxmax()
-    st.write(f"Top correlated feature: `{top_feature}`")
-
-    X_simple = df[[top_feature]].values
-    y_simple = df['radius_mean'].values
-    X_simple_scaled = scaler.fit_transform(X_simple)
-    X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X_simple_scaled, y_simple, test_size=0.2, random_state=42)
-
-    model = LinearRegression()
-    model.fit(X_train_s, y_train_s)
-    y_pred_s = model.predict(X_test_s)
-
-    st.write(f"MSE: {mean_squared_error(y_test_s, y_pred_s):.4f}")
-    st.write(f"R²: {r2_score(y_test_s, y_pred_s):.4f}")
-
-    fig, ax = plt.subplots()
-    ax.scatter(X_test_s, y_test_s, color='blue', label='Actual')
-    ax.plot(X_test_s, y_pred_s, color='red', label='Prediction')
-    ax.set_xlabel(top_feature)
-    ax.set_ylabel("radius_mean")
-    ax.legend()
-    st.pyplot(fig)
-
-elif section == "📚 Multiple Linear Regression":
-    st.title("📚 Multiple Linear Regression")
-    scaler = StandardScaler()
-    A = df.drop(columns=['perimeter_mean'])
-    B = df['perimeter_mean']
-    A_scaled = scaler.fit_transform(A)
-    B_scaled = scaler.fit_transform(B.values.reshape(-1, 1))
-
-    A_train, A_test, B_train, B_test = train_test_split(A_scaled, B_scaled, test_size=0.2, random_state=42)
-
-    mlr = LinearRegression()
-    mlr.fit(A_train, B_train)
-    B_pred_test = mlr.predict(A_test)
-
-    st.write("R²:", r2_score(B_test, B_pred_test))
-    st.write("MSE:", mean_squared_error(B_test, B_pred_test))
-
-    fig, ax = plt.subplots()
-    ax.scatter(range(len(B_test)), B_test, color='blue', label='Actual')
-    ax.scatter(range(len(B_test)), B_pred_test, color='red', label='Predicted', alpha=0.6)
-    ax.legend()
-    st.pyplot(fig)
-
-elif section == "🧮 Polynomial Regression":
-    st.title("🧮 Polynomial Regression")
-    scaler = StandardScaler()
-    A = df.drop(columns=['perimeter_mean'])
-    B = df['perimeter_mean']
-    A_scaled = scaler.fit_transform(A)
-    A_train, A_test, B_train, B_test = train_test_split(A_scaled, B, test_size=0.2, random_state=42)
-
-    degrees = [2, 3]
-    for degree in degrees:
-        poly = PolynomialFeatures(degree)
-        A_poly_train = poly.fit_transform(A_train)
-        A_poly_test = poly.transform(A_test)
-
-        model_poly = LinearRegression()
-        model_poly.fit(A_poly_train, B_train)
-        B_pred_test = model_poly.predict(A_poly_test)
-
-        st.subheader(f"Degree {degree}")
-        st.write("R²:", r2_score(B_test, B_pred_test))
-        st.write("MSE:", mean_squared_error(B_test, B_pred_test))
-
-        fig, ax = plt.subplots()
-        ax.scatter(B_test, B_pred_test, alpha=0.6)
-        ax.plot([min(B_test), max(B_test)], [min(B_test), max(B_test)], '--', color='red')
-        ax.set_xlabel("Actual")
-        ax.set_ylabel("Predicted")
-        ax.set_title(f"Polynomial Regression (degree {degree})")
-        st.pyplot(fig)
-
-elif section == "🧠 Logistic Regression":
-    st.title("🧠 Logistic Regression")
-    scaler = StandardScaler()
-    X = df.drop(columns=['Diagnosis'])
-    y = df['Diagnosis']
     X_scaled = scaler.fit_transform(X)
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42, stratify=y)
+    return train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-    clf = LogisticRegression(max_iter=10000)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    cm = confusion_matrix(y_test, y_pred)
+# Neural Network Class
+class NeuralNetwork(nn.Module):
+    def __init__(self, input_size, activation='relu'):
+        super(NeuralNetwork, self).__init__()
+        act = nn.ReLU() if activation == 'relu' else nn.Sigmoid()
+        self.model = nn.Sequential(
+            nn.Linear(input_size, 64), act,
+            nn.Linear(64, 32), act,
+            nn.Linear(32, 1), nn.Sigmoid()
+        )
 
-    st.write("Confusion Matrix:")
-    fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Benign', 'Malignant'], yticklabels=['Benign', 'Malignant'])
-    plt.xlabel('Predicted')
-    plt.ylabel('Actual')
-    st.pyplot(fig)
+    def forward(self, x):
+        return self.model(x)
 
-elif section == "📌 Summary":
-    st.title("📌 Summary")
-    st.markdown("""
-    - ✅ The best-performing feature for simple linear regression was **`perimeter_mean`**.
-    - 📈 Polynomial regression of degree **2** gave the best performance.
-    - 🧪 Logistic Regression performs well in classifying tumors into **Benign** and **Malignant**.
-    """)
+# Main App
+st.title('Breast Cancer Diagnosis ML App')
+data = load_data()
+st.subheader('Raw Data')
+st.dataframe(data.head())
 
+# Visualization
+if st.checkbox('Show EDA Plots'):
+    st.subheader('Correlation Heatmap')
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(data.corr(), cmap='coolwarm')
+    st.pyplot(plt)
+
+# Preprocess
+X_train, X_test, y_train, y_test = preprocess_data(data)
+
+# Model Selection
+model_choice = st.selectbox('Select Model', ['Logistic Regression', 'KNN', 'SVM', 'Neural Network'])
+
+if model_choice == 'Logistic Regression':
+    model = LogisticRegression(max_iter=10000)
+    model.fit(X_train, y_train)
+    preds = model.predict(X_test)
+
+elif model_choice == 'KNN':
+    k = st.slider('K value', 1, 15, 5)
+    model = KNeighborsClassifier(n_neighbors=k)
+    model.fit(X_train, y_train)
+    preds = model.predict(X_test)
+
+elif model_choice == 'SVM':
+    kernel = st.selectbox('Kernel', ['linear', 'rbf', 'poly'])
+    model = SVC(kernel=kernel)
+    model.fit(X_train, y_train)
+    preds = model.predict(X_test)
+
+elif model_choice == 'Neural Network':
+    act_func = st.selectbox('Activation Function', ['relu', 'sigmoid'])
+    model = NeuralNetwork(X_train.shape[1], activation=act_func)
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    
+    X_train_tensor = torch.FloatTensor(X_train)
+    y_train_tensor = torch.FloatTensor(y_train.values).view(-1, 1)
+    for epoch in range(100):
+        output = model(X_train_tensor)
+        loss = criterion(output, y_train_tensor)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    with torch.no_grad():
+        X_test_tensor = torch.FloatTensor(X_test)
+        preds = model(X_test_tensor).round().numpy().astype(int).flatten()
+
+# Evaluation
+st.subheader('Model Performance')
+st.write('Accuracy:', accuracy_score(y_test, preds))
+st.text('Classification Report')
+st.text(classification_report(y_test, preds))
+
+st.text('Confusion Matrix')
+fig, ax = plt.subplots()
+sns.heatmap(confusion_matrix(y_test, preds), annot=True, fmt='d', ax=ax)
+st.pyplot(fig)
